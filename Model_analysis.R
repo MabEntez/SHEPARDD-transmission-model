@@ -1,4 +1,7 @@
+# Clearing all variables from the workspace
 rm(list = ls())
+
+# Loading necessary libraries
 library(rstudioapi)
 library(ggplot2)
 library(dplyr)
@@ -7,52 +10,70 @@ library(tidyverse)
 library(scales)
 library(reshape2)
 
+# ----- Data Preparation -----
 
-#### Data Prep ####
+# Setting working directory to the directory of the active R script
 setwd(dirname(getActiveDocumentContext()$path))
+
+# Reading data from CSV files
 inter1 <- read.csv("model_int.csv")
 inter2 <- read.csv("model_int1.csv")
+
+# Updating RunId in inter2 to avoid overlap with inter1
 inter2$RunId <- inter2$RunId + max(inter1$RunId) + 1
+
+# Repeating the process for other datasets
 inter3 <- read.csv("model_int2.csv")
 inter3$RunId <- inter3$RunId + max(inter2$RunId) + 1
 inter4 <- read.csv("model_int3.csv")
 inter4$RunId <- inter4$RunId + max(inter3$RunId) + 1
 inter5 <- read.csv("model_int4.csv")
 inter5$RunId <- inter5$RunId + max(inter4$RunId) + 1
+
+# Combining all datasets into a single data frame
 inter <- rbind(inter1, inter2, inter3, inter4, inter5)
+
+# Removing the 12th and 13th columns
 inter <- inter[,-c(12,13)]
-#keptid <- read.csv("KeptIDs.csv")
-#keptid <- keptid[,2]
+
+# Adjusting the 'Step' column values
 inter$Step <- as.integer(round((inter$Step + 10)/24))
+
+# Reading spatial distribution data and removing the first column
 spatial_dis <- read.csv("Spatial prev distribution.csv")
 spatial_dis <- spatial_dis[,-1]
+
+# Filtering the dataset based on specific conditions
 fitting <- inter[inter$Step == 40 & inter$sheep_vaccine_cov_alt == 0.8 & inter$dog_deworming_cov_alt == 0.65,]
 
-
-# Assuming you want to find the RunIDs closest to a target value in sheep_prev
-target_value <- 0.56  # Replace with your target value
-
-# Calculate the absolute difference and sort
+# Identifying the runs closest to a target value in the 'sheep_prev' column
+target_value <- 0.56
 closest_runs <- fitting %>%
   mutate(diff = abs(sheep_prev - target_value)) %>%
   arrange(diff) %>%
   head(1000) %>%
   pull(RunId)
 
+# Saving and loading the closest runs to an RData file
 save(closest_runs, file = "Kept_runID_SD.RData")
-load("Kept_runID_SD.Rdata")
+load("Kept_runID_SD.RData")
 
+# Sampling 100 runs from the closest runs and storing them in 'kept_ID'
 kept_ID <- lapply(closest_runs, function(x) sample(x, 100))
 kept_ID <- c(t(unlist(sapply(closest_runs, function(x) c(x, x + 1, x + 2, x + 3)))))
 
+# Creating a new variable 'groups' based on interactions of two columns
 inter$groups <- with(inter, interaction(sheep_vaccine_cov_alt, dog_deworming_cov_alt))
+
+# Splitting the 'inter' data frame by the 'groups' variable and renaming the resulting list
 inter_list <- split(inter, inter$groups)
 new_names <- list("int1", "int2", "int3", "int4")
 inter_list <- setNames(inter_list, new_names)
 list2env(inter_list, envir = .GlobalEnv)
 
-#### Intervention 1 ####
+# ----- Intervention 1 Analysis -----
 
+# Extracting specific columns from 'int1' for dogs and sheep, and filtering by 'kept_ID'
 int1_dog <- int1[, c(1,2,12)]
 int1_dog <- int1_dog[int1_dog$RunId %in% kept_ID, ]
 int1_sheep <- int1[, c(1,2,13)]
@@ -61,88 +82,92 @@ int1_sheep <- int1_sheep[int1_sheep$RunId %in% kept_ID, ]
 int1_sheep <- reshape(int1_sheep, idvar = "Step", timevar = "RunId", direction = "wide")
 int1_dog <- reshape(int1_dog, idvar = "Step", timevar = "RunId", direction = "wide")
 
-#### Intervention 2 ####
+# Reshaping data for sheep and dogs in Intervention 1 
+int1_sheep <- reshape(int1_sheep, idvar = "Step", timevar = "RunId", direction = "wide")
+int1_dog <- reshape(int1_dog, idvar = "Step", timevar = "RunId", direction = "wide")
 
+# ----- Intervention 2 Analysis -----
+
+# Extracting and filtering specific columns from 'int2' for dogs and sheep
 int2_dog <- int2[, c(1,2,12)]
 int2_dog <- int2_dog[int2_dog$RunId %in% kept_ID, ]
 int2_sheep <- int2[, c(1,2,13)]
 int2_sheep <- int2_sheep[int2_sheep$RunId %in% kept_ID, ]
 
+# Reshaping data for sheep and dogs in Intervention 2
 int2_sheep <- reshape(int2_sheep, idvar = "Step", timevar = "RunId", direction = "wide")
 int2_dog <- reshape(int2_dog, idvar = "Step", timevar = "RunId", direction = "wide")
 
-#### Intervention 3 ####
+# ----- Intervention 3 Analysis -----
 
+# Extracting and filtering specific columns from 'int3' for dogs and sheep
 int3_dog <- int3[, c(1,2,12)]
 int3_dog <- int3_dog[int3_dog$RunId %in% kept_ID, ]
 int3_sheep <- int3[, c(1,2,13)]
 int3_sheep <- int3_sheep[int3_sheep$RunId %in% kept_ID, ]
 
+# Reshaping data for sheep and dogs in Intervention 3
 int3_sheep <- reshape(int3_sheep, idvar = "Step", timevar = "RunId", direction = "wide")
 int3_dog <- reshape(int3_dog, idvar = "Step", timevar = "RunId", direction = "wide")
 
-#### Intervention 4 ####
+# ----- Intervention 4 Analysis -----
 
+# Extracting and filtering specific columns from 'int4' for dogs and sheep
 int4_dog <- int4[, c(1,2,12)]
 int4_dog <- int4_dog[int4_dog$RunId %in% kept_ID, ]
 int4_sheep <- int4[, c(1,2,13)]
 int4_sheep <- int4_sheep[int4_sheep$RunId %in% kept_ID, ]
 
+# Reshaping data for sheep and dogs in Intervention 4
 int4_sheep <- reshape(int4_sheep, idvar = "Step", timevar = "RunId", direction = "wide")
 int4_dog <- reshape(int4_dog, idvar = "Step", timevar = "RunId", direction = "wide")
 
+# ----- Basic Plots for Sheep and Dogs -----
 
-#### Basic Plot Sheep ####
-
+# Loading the 'patchwork' library for arranging plots
 library(patchwork)
 
-# Prepare sheep data
+# Preparing the sheep data for plotting
 int1_sheep_long <- gather(int1_sheep, "variable", "value", -Step)
 
-# Plot for Sheep
+# Generating a line plot for Sheep prevalence over time
 s <- ggplot(int1_sheep_long, aes(x = Step, y = value, group = variable)) +
   geom_line() +
   labs(title = "Sheep Prevalence Burning Period", x = "Years", y = "Prevalence") +
   scale_x_continuous(limits = c(0, 40)) +
   theme_bw()
 
-# Prepare dog data
+# Preparing the dog data for plotting
 int1_dog_long <- gather(int1_dog, "variable", "value", -Step)
 
-# Plot for Dog
+# Generating a line plot for Dog prevalence over time
 d <- ggplot(int1_dog_long, aes(x = Step, y = value, group = variable)) +
   geom_line() +
   labs(title = "Dog Prevalence Burning Period", x = "Years", y = "Prevalence") +
   scale_x_continuous(limits = c(0, 40)) +
   theme_bw()
-# Combine plots horizontally
+
+
+# Combining the sheep and dog prevalence plots side by side
 combined_plot <- s + d + plot_layout(ncol = 2)
 
-# Display the combined plot
+# Displaying the combined plot
 print(combined_plot)
 
-#### ggplot Sheep ####
+# ----- Enhanced Plots for Sheep across Interventions -----
+
+# Loading additional libraries for plotting
 library(scales)
 library(cowplot)
 library(gridExtra)
-## int1 vs int2 ##
-int1_df = data.frame(matrix(nrow = (nrow(int1_sheep)), ncol = 4)) 
-# Set the steps
+
+# Transforming data for Intervention 1 (int1)
+int1_df = data.frame(matrix(nrow = (nrow(int1_sheep)), ncol = 4))
 int1_df[,1] <- int1_sheep[,1]
-# Finding the median
 int1_df[, 2] <- apply(subset(int1_sheep, select = 2:ncol(int1_sheep)), 1, median, na.rm = TRUE)
-# Finding the 95% quantile
 int1_df[, 3] <- apply(subset(int1_sheep, select = 2:ncol(int1_sheep)), 1, quantile, probs = 0.95, na.rm = TRUE)
 int1_df[, 4] <- apply(subset(int1_sheep, select = 2:ncol(int1_sheep)), 1, quantile, probs = 0.05, na.rm = TRUE)
-
-int2_df = data.frame(matrix(nrow = (nrow(int2_sheep)), ncol = 3)) 
-# Finding the median
-int2_df[, 1] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, median, na.rm = TRUE)
-# Finding the 95% quantile
-int2_df[, 2] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, quantile, probs = 0.95, na.rm = TRUE)
-int2_df[, 3] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, quantile, probs = 0.05, na.rm = TRUE)
-
-int1_df <- int1_df %>% 
+int1_df <- int1_df %>%
   rename(
     Steps = X1,
     Base_median = X2,
@@ -150,75 +175,73 @@ int1_df <- int1_df %>%
     Base_lo_quantile = X4
   )
 
-int2_df <- int2_df %>% 
+# Transforming data for Intervention 2 (int2) similarly
+int2_df = data.frame(matrix(nrow = (nrow(int2_sheep)), ncol = 3))
+int2_df[, 1] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, median, na.rm = TRUE)
+int2_df[, 2] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, quantile, probs = 0.95, na.rm = TRUE)
+int2_df[, 3] <- apply(subset(int2_sheep, select = 2:ncol(int2_sheep)), 1, quantile, probs = 0.05, na.rm = TRUE)
+int2_df <- int2_df %>%
   rename(
     Median = X1,
     Up_quantile = X2,
     Lo_quantile = X3
   )
-
 int2_df = cbind(int1_df, int2_df)
 
-
-int3_df = data.frame(matrix(nrow = (nrow(int3_sheep)), ncol = 3)) 
-# Finding the median
+# Transforming data for Intervention 3 (int3) similarly
+int3_df = data.frame(matrix(nrow = (nrow(int3_sheep)), ncol = 3))
 int3_df[, 1] <- apply(subset(int3_sheep, select = 2:ncol(int3_sheep)), 1, median, na.rm = TRUE)
-# Finding the 95% quantile
 int3_df[, 2] <- apply(subset(int3_sheep, select = 2:ncol(int3_sheep)), 1, quantile, probs = 0.95, na.rm = TRUE)
 int3_df[, 3] <- apply(subset(int3_sheep, select = 2:ncol(int3_sheep)), 1, quantile, probs = 0.05, na.rm = TRUE)
-
-int3_df <- int3_df %>% 
+int3_df <- int3_df %>%
   rename(
     Median = X1,
     Up_quantile = X2,
     Lo_quantile = X3
   )
-
 int3_df = cbind(int1_df, int3_df)
 
-
-int4_df = data.frame(matrix(nrow = (nrow(int4_sheep)), ncol = 3)) 
-# Finding the median
+# Transforming data for Intervention 4 (int4)
+int4_df = data.frame(matrix(nrow = (nrow(int4_sheep)), ncol = 3))
 int4_df[, 1] <- apply(subset(int4_sheep, select = 2:ncol(int4_sheep)), 1, median, na.rm = TRUE)
-# Finding the 95% quantile
 int4_df[, 2] <- apply(subset(int4_sheep, select = 2:ncol(int4_sheep)), 1, quantile, probs = 0.95, na.rm = TRUE)
 int4_df[, 3] <- apply(subset(int4_sheep, select = 2:ncol(int4_sheep)), 1, quantile, probs = 0.05, na.rm = TRUE)
-
-int4_df <- int4_df %>% 
+int4_df <- int4_df %>%
   rename(
     Median = X1,
     Up_quantile = X2,
     Lo_quantile = X3
   )
-
 int4_df = cbind(int1_df, int4_df)
 
-
+# ----- Visualization for Increased Vaccine Coverage -----
+# Creating a plot for median sheep prevalence with increased vaccine coverage
 vac <- ggplot(data = int2_df, aes(x = Steps)) +
-  geom_line(aes(y = Base_median, color = "Current intervention\nmedian"), size = 1) +
+  geom_line(aes(y = Base_median, color = "Current intervention\\nmedian"), size = 1) +
   geom_ribbon(aes(y = Base_median, ymin = Base_lo_quantile, ymax = Base_up_quantile), fill = "black", alpha = 0.2) +
-  geom_line(aes(y = Median, color = "Intensified intervention\nmedian"), size = 1) +
+  geom_line(aes(y = Median, color = "Intensified intervention\\nmedian"), size = 1) +
   geom_ribbon(aes(y = Median, ymin = Lo_quantile, ymax = Up_quantile), fill = "#e40404", alpha = 0.2) +
   coord_cartesian(xlim = c(30, NA)) +
   scale_y_continuous(labels = percent_format()) +
   xlab("Years") +
   ylab("CE prevalence in sheep") +
-  ggtitle("Median Sheep Prevalence For\nIncreased Vaccine Coverage") +
+  ggtitle("Median Sheep Prevalence For\\nIncreased Vaccine Coverage") +
   theme_bw() +
-  scale_color_manual(values = c("Current intervention\nmedian" = "black", "Intensified intervention\nmedian" = "#e40404"), name = "Legend") +
-  guides(fill = "none")+
-  theme(legend.text = element_text(size = 12))+
+  scale_color_manual(values = c("Current intervention\\nmedian" = "black", "Intensified intervention\\nmedian" = "#e40404"), name = "Legend") +
+  guides(fill = "none") +
+  theme(legend.text = element_text(size = 12)) +
   theme(legend.position = "none")
 
+# ----- Visualization for Increased Deworming -----
 
-
+# Creating a plot for median sheep prevalence with increased deworming
 dworm <- ggplot(data = int3_df, aes(x = Steps)) +
-  geom_line(aes(y = Base_median, color = "Current intervention\nmedian"), size = 1) +
+  geom_line(aes(y = Base_median, color = "Current intervention\\nmedian"), size = 1) +
   geom_ribbon(aes(y = Base_median, ymin = Base_lo_quantile, ymax = Base_up_quantile), fill = "black", alpha = 0.2) +
-  geom_line(aes(y = Median, color = "Intensified intervention\nmedian"), size = 1) +
+  geom_line(aes(y = Median, color = "Intensified intervention\\nmedian"), size = 1) +
   geom_ribbon(aes(y = Median, ymin = Lo_quantile, ymax = Up_quantile), fill = "#ee7b00", alpha = 0.2) +
   coord_cartesian(xlim = c(30, NA)) +
-  scale_y_continuous(labels = percent_format()) +
+  scale_y_continuous(labels = percent_format()) ++
   xlab("Years") +
   ylab("CE prevalence in sheep") +
   ggtitle("Median Sheep Prevalence For\nIncreased Deworming Coverage") +
@@ -228,7 +251,9 @@ dworm <- ggplot(data = int3_df, aes(x = Steps)) +
   theme(legend.text = element_text(size = 12))+
   theme(legend.position = "none")
 
+# ----- Visualization for Increased Vaccination & Deworming -----
 
+# Creating a plot for median sheep prevalence with combined increased vaccination and deworming
 
 vacdworm <- ggplot(data = int4_df, aes(x = Steps)) +
   geom_line(aes(y = Base_median, color = "Current intervention\nmedian"), size = 1) +
@@ -249,7 +274,9 @@ vacdworm <- ggplot(data = int4_df, aes(x = Steps)) +
   guides(fill = "none")+
   theme(legend.text = element_text(size = 12))
 
-# Generate a plot that includes all the legend elements
+# ----- Plotting Legend -----
+
+# Generating a combined legend plot for all interventions
 legend_plot <- ggplot() +
   geom_point(aes(x = 1, y = 1, color = "Current intervention"), data = data.frame(x = 1, y = 1)) +
   geom_point(aes(x = 1, y = 1, color = "Intensified Vaccination"), data = data.frame(x = 1, y = 1)) +
@@ -402,10 +429,12 @@ print(final_plot)
 
 #### Elimination percentage graph ####
 
+# Calculating the proportion of zeros (indicative of elimination) for Intervention 1
 proportion_zero1 <- apply(int1_sheep[2:ncol(int1_sheep)], 1, function(row) {
   sum(row == 0) / length(row)
 })
 
+# Similarly, calculating the proportion of zeros for Interventions 2, 3, and 4
 proportion_zero2 <- apply(int2_sheep[2:ncol(int2_sheep)], 1, function(row) {
   sum(row == 0) / length(row)
 })
@@ -418,8 +447,16 @@ proportion_zero4 <- apply(int4_sheep[2:ncol(int4_sheep)], 1, function(row) {
   sum(row == 0) / length(row)
 })
 
-proportion_zero <- data.frame(Steps = int1_sheep$Step, Proportion1 = proportion_zero1, Proportion2 = proportion_zero2, Proportion3 = proportion_zero3, Proportion4 = proportion_zero4)
+# Combining the proportion data into a single data frame
+proportion_zero <- data.frame(
+  Steps = int1_sheep$Step, 
+  Proportion1 = proportion_zero1, 
+  Proportion2 = proportion_zero2, 
+  Proportion3 = proportion_zero3, 
+  Proportion4 = proportion_zero4
+)
 
+# Creating a plot showcasing the proportions of elimination for each intervention
 p <- ggplot(data = proportion_zero, aes(x = Steps)) +
   geom_line(aes(y = Proportion1, color = "Current intervention"), size = 1.3)+
   geom_line(aes(y = Proportion2, color = "Intensified Vaccination"), size = 1.3)+
@@ -437,16 +474,16 @@ p <- ggplot(data = proportion_zero, aes(x = Steps)) +
     breaks = c("Current intervention",
                "Intensified Vaccination", 
                "Intensified Deworming", 
-               "Intensified Vaccination & Deworming"),  # Add this line
+               "Intensified Vaccination & Deworming"),
     labels = c("Current intervention\n(65% deworming coverage,\n 80% vaccination coverage)", 
                "Increased Vaccination Coverage\n(65% deworming coverage,\n 90% vaccination coverage)", 
                "Increased Deworming Coverage\n(90% dewroming coverage,\n 80% vaccination coverage)", 
                "Increased Deworming &\nVaccination Coverage\n(90% dewroming coverage,\n 90% vaccination coverage)"),    
     name = "Legend"
   )+
-  xlab("Years") +  # Label for the x-axis
-  ylab("Percentage of simulations") +  # Label for the y-axis
-  ggtitle("Percentage of simulations achieving 0% prevalence") +  # Plot title
+  xlab("Years") + 
+  ylab("Percentage of simulations") +
+  ggtitle("Percentage of simulations achieving 0% prevalence") +
   
   theme_bw()
 
@@ -505,7 +542,7 @@ stats_df <- result_df %>%
     upper_95 = quantile(c_across(all_of(set_cols)), probs = 0.95, na.rm = TRUE),
     lower_5 = quantile(c_across(all_of(set_cols)), probs = 0.05, na.rm = TRUE)
   ) %>%
-  select(Step, mean_val, lower_5, upper_95)  # Select only the required columns
+  select(Step, mean_val, lower_5, upper_95)
 
 stats_df_1 <- result_df_1 %>%
   rowwise() %>%
@@ -514,7 +551,7 @@ stats_df_1 <- result_df_1 %>%
     upper_95 = quantile(c_across(all_of(set_cols)), probs = 0.95, na.rm = TRUE),
     lower_5 = quantile(c_across(all_of(set_cols)), probs = 0.05, na.rm = TRUE)
   ) %>%
-  select(Step, mean_val, lower_5, upper_95)  # Select only the required columns
+  select(Step, mean_val, lower_5, upper_95)
 
 stats_df_2 <- result_df_2 %>%
   rowwise() %>%
@@ -523,7 +560,7 @@ stats_df_2 <- result_df_2 %>%
     upper_95 = quantile(c_across(all_of(set_cols)), probs = 0.95, na.rm = TRUE),
     lower_5 = quantile(c_across(all_of(set_cols)), probs = 0.05, na.rm = TRUE)
   ) %>%
-  select(Step, mean_val, lower_5, upper_95)  # Select only the required columns
+  select(Step, mean_val, lower_5, upper_95)
 
 stats_df_3 <- result_df_3 %>%
   rowwise() %>%
@@ -532,7 +569,7 @@ stats_df_3 <- result_df_3 %>%
     upper_95 = quantile(c_across(all_of(set_cols)), probs = 0.95, na.rm = TRUE),
     lower_5 = quantile(c_across(all_of(set_cols)), probs = 0.05, na.rm = TRUE)
   ) %>%
-  select(Step, mean_val, lower_5, upper_95)  # Select only the required columns
+  select(Step, mean_val, lower_5, upper_95)
 
 
 p1 <- ggplot() +
@@ -560,7 +597,7 @@ p1 <- ggplot() +
     breaks = c("Current intervention",
                "Intensified Vaccination", 
                "Intensified Deworming", 
-               "Intensified Vaccination & Deworming"),  # Add this line
+               "Intensified Vaccination & Deworming"),
     labels = c("Current intervention\n(65% deworming coverage,\n 80% vaccination coverage)", 
                "Increased Vaccination Coverage\n(65% deworming coverage,\n 90% vaccination coverage)", 
                "Increased Deworming Coverage\n(90% dewroming coverage,\n 80% vaccination coverage)", 

@@ -1,4 +1,5 @@
-# My Very Own Tranmission Model
+# SHEPARDD E. granulosus sensu latp tranmsission model 
+# Author: M. Entezami
 import math
 from enum import IntEnum
 import numpy as np
@@ -8,7 +9,7 @@ from mesa.datacollection import DataCollector
 
 class CEModel(Model):
     """
-    A model for infection spread.
+    A model for the transmission of E. granulosus sensu lato in dogs and sheep in a single farm setting. Values are fitted to best simulate trasmission in Rio Negro, Argentina
     """
 
     def __init__(
@@ -163,7 +164,7 @@ class CEModel(Model):
         
         self.running = True
         
-        
+        #Set the model and agent parametes to be recorded
         self.datacollector = DataCollector(model_reporters={"Egg Count": "egg_count",
                                                             "Seed": "seed",
                                                             "Vaccine Dosage Count": "vaccine_dose_count",
@@ -175,7 +176,7 @@ class CEModel(Model):
                              "Age": "age",
                              "N parasite": "n_parasite",
                              })
-
+        
     def replenish_livestock(self):
         """
         Replenishes the animals that have died by new stock
@@ -205,7 +206,7 @@ class CEModel(Model):
             dog.age = 0
             dog.ind_het = self.dog_het_list.pop(0)
             #print(dog.ind_het)
-
+    
     def egg_decay(self):
         """
         Simulates the rate at which eggs die
@@ -228,11 +229,10 @@ class CEModel(Model):
                                            np.random.choice([False, True], p=[(1-self.dog_deworming_cov_alt), self.dog_deworming_cov_alt]),
                                            np.random.choice([False, True], p=[(1-self.dog_deworming_cov_alt), self.dog_deworming_cov_alt])]
 
-    # @numba.jit(nopython = True, nogil = True, fastmath = True)
     def step(self):
-        '''
+        """
         Advance the model by one step.
-        '''
+        """
         self.replenish_livestock()
         self.biweekly_dead_dog = 0
         if ((self.schedule.time) % 24) == 0:
@@ -333,8 +333,10 @@ class State(IntEnum):
     RECOVERED = 3
     DEAD = 4
 
-
 class SheepAgent(Agent):
+    """ 
+    Properties of the Sheep agent
+    """
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.age = self.random.normalvariate(1.5, 0.5)
@@ -396,7 +398,6 @@ class SheepAgent(Agent):
         """
         Culling of sheep during specific months of the year
         The young lambs are culled randomly during the winter months and the sheep sheep older than 6 killed during the rest
-        .... It might be more accurate if all "wool" sheep were also culled before the age of 6
         """
         if self.type == "meat" and self.culling_date == 0:
             if self.age >= 1:
@@ -406,14 +407,14 @@ class SheepAgent(Agent):
                 else:
                     self.culling_date = math.floor((self.random.uniform(22, 24)) + 0.5)
 
-        if self.age >= 6 and self.culling_date == 0:  # possibly change so they are culled throughout all cohorts
+        if self.age >= 6 and self.culling_date == 0:
             self.culling_date = math.floor((self.random.uniform(6, 23)) + 0.5)
 
         if self.culling_date == ((self.model.schedule.time % 24) + 1):
             if self.state == State.INFECTED:
                 self.cyst_year = np.insert(self.cyst_year, 0, 0)
 
-            self.model.yearly_sheep_death += 1  # culling
+            self.model.yearly_sheep_death += 1  
             self.model.schedule.remove(self)
             cyst_proto = []
             #print(self.cyst_year)
@@ -441,6 +442,9 @@ class SheepAgent(Agent):
                 self.model.schedule.remove(self)
         
     def vaccination(self):
+        """
+        Vaccination of sheeo according to schedule and dosage
+        """
         if math.floor((((self.model.schedule.time + 1) % 24) / 2) + 0.5)  == 12:
             if self.vaccine_dose == 0 and self.model.sheep_vaccine_schedule[0]:
                 #print("vaccine")
@@ -476,11 +480,13 @@ class SheepAgent(Agent):
 
 
 class DogAgent(Agent):
-
-    def __init__(self, unique_id, model):  # Do I need to add egg_count here or not?
+    """ 
+    Properties of the Dog agent
+    """
+    def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.age = round(self.random.uniform(10, 110))  # between 10 and 110 fortnights
-        self.ind_het = "null" #1 - exp(-rate)
+        self.ind_het = "null" 
         self.species = "dog"
         self.b_week_age = 0
         self.new_parasite = 0
@@ -498,25 +504,20 @@ class DogAgent(Agent):
     def shed(self):
         """
         Shed eggs into the environment
-        
-        Agent will release eggs into environment based on the number of adult parasites, 
-        and how many gravid proglottids they release.
-        
-        (ask about how we will deal with decay rates when they produce non-wholenumbers)
         """
         self.model.egg_count += sum(
             np.random.poisson(self.model.parasite_shedding, self.n_parasite))  # based on number of eggs per 15 days
 
     def parasite(self):
         """
-        Growth of adult parasites
-        
-        (Will need to possible add a protoscoleces decay rate, or could be described in the infection rate)
+        Death of adult parasite population
         """
         self.n_parasite = max([0, self.n_parasite - np.random.poisson(self.n_parasite * (
-                1 / self.model.parasite_life_exp))])  #6-22 months life expectancy how to distribution
+                1 / self.model.parasite_life_exp))])  #6-22 months life expectancy
 
-
+        """
+        Growth of juvenile parasites with only a proportion surviving the maturation proces to adult parasites
+        """
         def proto_decay(arr):
             new_arr = [0] * (self.model.proto_latent_length - 1)
             for counter in range(len(arr)):
@@ -549,25 +550,15 @@ class DogAgent(Agent):
         """
         Eating cysts and becoming infected.
         
-        The agent looks at the number of dead infected sheep for the time step and calculated how many protoscoleces per dog
+        The agent looks at the number of protoscolex available from dead infected sheep from the time step and calculated how many protoscoleces per dog
         is available for that time step.
-        The chance of infection is then calculated based on the porportion of protoscoleces that will mature
-        
-        ****Average number of cysts available from dead sheep for each dog. Consider all are consumed.
-        
-        (to be implemented) and the number of protoscoleces that are found to be able to mature
-        
-        (to be implemented) The number of protoscoleces ingested is determined by the number in cyst
-        
-        (possible idea for restructure) We could acc calculate the cystic growth of each sheep and calculate no. of protoscoleces
-        based on size and number of cysts. We will have to identify exactly which dead sheep in being consumed for this. Too much?
         """
 
         self.agent_proto += min([self.model.proto_availability / self.model.schedule.get_breed_count(DogAgent),
                                  self.model.proto_availability / self.model.schedule.get_breed_count(DogAgent)  * self.model.dog_consumption_rate * self.ind_het])
         #print("agent_proto at infect is" + str(self.agent_proto)) 
 
-
+        #immunity component of infection (depreciated)
         """if self.immune == 0:
             self.agent_cyst = self.model.proto_availability / self.model.schedule.get_breed_count(DogAgent)
             self.Latent.insert(0, self.agent_cyst * self.model.proto_survivability)
@@ -576,6 +567,7 @@ class DogAgent(Agent):
                 if imm_gain == 1:
                     self.immune = 1"""
 
+    #immunity component (depreciated)
     """def immunity(self):
         if self.immune == 1:
             imm_loss = np.random.choice([0,1], p=[(1 - self.model.dog_immunity_loss),(self.model.dog_immunity_loss)])
@@ -583,6 +575,10 @@ class DogAgent(Agent):
                  self.immune = 0"""
 
     def deworm(self):
+        """
+        Deworming according to schedule, removing all worms in dog host
+        """
+
         #print("deworm")
         self.n_parasite = int(0)
         self.latent_prot = [int(x * 0) for x in self.latent_prot]
@@ -590,9 +586,7 @@ class DogAgent(Agent):
 
     def ageing(self):
         """
-        Agent Aging
-        
-        (to be implemented) need to allow dogs to die and replenish
+        Agent Aging and retirement
         """
         self.age += 1
 

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import itertools
 from Batchrun_Rewrite import batch_run
-from ICE_V7 import *
+from SHEPARDD_Model import *
 import gc
 
 # Add the specified path to the system path to be able to import Python modules from it
